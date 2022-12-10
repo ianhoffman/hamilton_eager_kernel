@@ -40,5 +40,5 @@ Obviously this is a super brittle prototype. Here are some issues with it:
 3. Activate the venv: `. .venv/bin/activate`
 4. Install requirements: `pip install -r requirements.txt`
 5. Install the kernel: `python -m hamilton_eager_kernel.install`
-6. Open the `hello_world` notebook with the `hamilton_eager` kernel: `jupyter notebook hello_world.ipynb --MultiKernelManager.default_kernel_name=hamilton_eager`
+6. Open the `hello_world` notebook with the `hamilton_eager` kernel: `jupyter notebook hello_world.ipynb`
 7. Viola! Play around in the notebook and, as you define functions in cells, you'll see the result of executing that function in the DAG.

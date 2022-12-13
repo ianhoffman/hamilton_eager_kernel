@@ -14,15 +14,18 @@ _MODULES = dict()
 FUNCTION_CELL_TEMPLATE = """\
 {code}
 
-sys.modules.pop('{function_name}', None)
-temp_module = ad_hoc_utils.create_temporary_module(
-    {function_name},
-    module_name='{function_name}'
-)
-_MODULES['{function_name}'] = temp_module
+_FUNCTIONS = {functions}
+
+for function in _FUNCTIONS:
+    sys.modules.pop(function.__name__, None)
+    temp_module = ad_hoc_utils.create_temporary_module(
+        function,
+        module_name=function.__name__
+    )
+    _MODULES[function.__name__] = temp_module
 
 dr = driver.Driver(dict(), *_MODULES.values()) 
-dr.execute(['{function_name}'], inputs=input_data)
+dr.execute([_FUNCTIONS[-1].__name__], inputs=input_data)
 """
 
 class HamiltonEagerKernel(IPythonKernel):
@@ -45,9 +48,8 @@ class HamiltonEagerKernel(IPythonKernel):
     prototype rapidly in Hamilton, would that spur adoption?
 
     Note that this is a prototype which is missing a lot of things:
-    1. We create a new module every time you run a cell, even if the function in the cell hasn't changed.
-    2. We only allow running one function per cell (maybe good, but still confusing).
-    3. The developer MUST define an `input_data` variable before running a node, and this is totally undocumented.
+    * We create a new module every time you run a cell, even if the function in the cell hasn't changed.
+    * The developer MUST define an `input_data` variable before running a node, and this is totally undocumented.
     """
 
     implementation = 'Hamilton Eager'
@@ -66,12 +68,20 @@ class HamiltonEagerKernel(IPythonKernel):
         *,
         cell_id=None,
     ):
-        match = re.match(r'^def\s(?P<function_name>[A-Za-z_][A-Za-z0-9_]+)', code)
-        if match is not None:
-            # This is a function we can treat as a node in a graph, so let's execute it
-            # treating all the prior cells as upstream nodes in the same graph.
-            function_name = match.groupdict()['function_name']
-            code = FUNCTION_CELL_TEMPLATE.format(code=code, function_name=function_name)
+        functions = re.findall(
+            r"^def\s(?P<function_name>[A-Za-z][A-Za-z0-9_]*)",
+            code,
+            flags=re.MULTILINE
+        )
+        if functions:
+            # Treat these functions as nodes in the DAG, and execute the last
+            # one treating prior cells as upstream nodes in the same DAG.
+            code = FUNCTION_CELL_TEMPLATE.format(
+                code=code,
+                # Strip quotes so these are treated as references to function objects
+                # rather than strings in the generated code.
+                functions=str(functions).replace("'", "").replace('"', '')
+            )
             if self._is_first_run:
                 code = f"{INITIAL_RUN_TEMPLATE}\n{code}"
                 self._is_first_run = False
